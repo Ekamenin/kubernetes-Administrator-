@@ -1,0 +1,72 @@
+Kubernetes Horizontal Pod Autoscaler (HPA) 
+
+#1. Use "resource requests" value as the baseline (100%) for calculating resource utilization. If you do not specify a requests value for a resource (like CPU or memory), the HPA cannot compute a utilization percentage and will fail to scale your application.
+
+#2. The HPA controller operates as a continuous control loop (by default checking every 15 seconds)
+
+#3. Calculates the required number of replicas using the following mathematical formula:
+
+ Desired Replicas = [ current replicas x (current metric value / desired metric value)]
+
+Current metric value = average across all pods, fetched by metric server
+Desired metric value = target threshold value in HPA configuration
+
+So if: 
+
+[A] 
+Current replicas = 2
+
+[B]
+resources:
+  limits:
+    cpu: 300m
+    memory: 300Mi
+  requests:
+    cpu: 200m
+    memory: 200Mi
+
+[C]
+HPA is --cpu-percent=50%
+
+So desired metric value becomes 50% of requests = 100m
+
+Now average CPU usage goes to 160m. HPA will use this formula
+
+Current Replicas = 2
+Current metric value = 160m
+Desired metric value = 100m
+
+Desired Replicas = [2 x(160/100)] => [2 x 1.6] => [3.2] => 4
+
+HPA will update replicas count from 2 to 4
+
+
+PS: Also consider the default tolerance of 10%
+So actually scaling will happen when memory/cpu usage goes
+10% above target
+
+This can be updated for both scale-up and scale-down using the kube-controller-manager --horizontal-pod-autoscaler-tolerance command line argument. 
+
+Globally -
+
+/etc/kubernetes/manifests/kube-controller-manager.yaml
+
+#add this line
+--horizontal-pod-autoscaler-tolerance=0.05  #toleration of 5%
+# default is 10% 
+
+OR Per HPA
+
+ behavior:
+    scaleUp:
+      tolerance: 0.05  # 5% tolerance for quick, aggressive scaling up
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 15
+    scaleDown:
+      tolerance: 0.15  # 15% tolerance to ignore minor load drops
+      policies:
+      - type: Percent
+        value: 10
+        periodSeconds: 60
